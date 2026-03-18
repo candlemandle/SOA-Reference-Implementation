@@ -40,6 +40,9 @@ components:
           type: string
         password:
           type: string
+          minLength: 8
+          maxLength: 72
+
 
     TokenResponse:
       type: object
