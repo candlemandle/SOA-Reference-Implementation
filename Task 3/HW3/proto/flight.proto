@@ -4,9 +4,6 @@ package flight;
 
 import "google/protobuf/timestamp.proto";
 
-// ───────────────────────────────────────────
-// Enums
-// ───────────────────────────────────────────
 
 enum FlightStatus {
   FLIGHT_STATUS_UNSPECIFIED = 0;
@@ -23,9 +20,7 @@ enum ReservationStatus {
   EXPIRED = 3;
 }
 
-// ───────────────────────────────────────────
 // Core messages
-// ───────────────────────────────────────────
 
 message Flight {
   int64  id               = 1;
@@ -50,23 +45,19 @@ message SeatReservation {
   google.protobuf.Timestamp created_at = 6;
 }
 
-// ───────────────────────────────────────────
 // SearchFlights
-// ───────────────────────────────────────────
 
 message SearchFlightsRequest {
   string origin      = 1;
   string destination = 2;
-  string date        = 3;  // опционально, формат "2026-04-01"
+  string date        = 3;
 }
 
 message SearchFlightsResponse {
   repeated Flight flights = 1;
 }
 
-// ───────────────────────────────────────────
 // GetFlight
-// ───────────────────────────────────────────
 
 message GetFlightRequest {
   int64 flight_id = 1;
@@ -76,23 +67,19 @@ message GetFlightResponse {
   Flight flight = 1;
 }
 
-// ───────────────────────────────────────────
 // ReserveSeats
-// ───────────────────────────────────────────
 
 message ReserveSeatsRequest {
   int64  flight_id   = 1;
   int32  seat_count  = 2;
-  string booking_id  = 3;  // UUID, нужен для идемпотентности (п.8)
+  string booking_id  = 3;
 }
 
 message ReserveSeatsResponse {
   SeatReservation reservation = 1;
 }
 
-// ───────────────────────────────────────────
 // ReleaseReservation
-// ───────────────────────────────────────────
 
 message ReleaseReservationRequest {
   string booking_id = 1;
@@ -102,9 +89,7 @@ message ReleaseReservationResponse {
   bool success = 1;
 }
 
-// ───────────────────────────────────────────
 // Service definition
-// ───────────────────────────────────────────
 
 service FlightService {
   // Поиск рейсов по маршруту и дате
