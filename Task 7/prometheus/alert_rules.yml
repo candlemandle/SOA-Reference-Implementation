@@ -1,0 +1,86 @@
+groups:
+  - name: service_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_request_errors_total[5m])) by (job)
+            /
+            sum(rate(http_requests_total[5m])) by (job)
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job))
+          > 1.0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 latency on {{ $labels.job }}"
+          description: "p95 latency is {{ $value }}s over the last 5 minutes."
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Prometheus target {{ $labels.instance }} has been down for more than 1 minute."
+
+      - alert: ConsumerLagHigh
+        expr: consumer_lag > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consumer lag is high on partition {{ $labels.partition }}"
+          description: "Lag = {{ $value }} messages."
+
+  - name: sli_alerts
+    rules:
+      - alert: SLI_AvailabilityBreach
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"2.."}[10m]))
+            /
+            sum(rate(http_requests_total[10m]))
+          ) < 0.95
+        for: 2m
+        labels:
+          severity: critical
+          sli: availability
+        annotations:
+          summary: "API availability below failure threshold (95%)"
+          description: "Current availability: {{ $value | humanizePercentage }}"
+
+      - alert: SLI_LatencyBreach
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="wms-service"}[10m])) by (le))
+          > 1.0
+        for: 2m
+        labels:
+          severity: critical
+          sli: latency
+        annotations:
+          summary: "API latency p95 above failure threshold (1000ms)"
+          description: "Current p95 latency: {{ $value }}s"
+
+      - alert: SLI_EventProcessingBreach
+        expr: |
+          histogram_quantile(0.95, sum(rate(event_processing_duration_seconds_bucket[10m])) by (le))
+          > 5.0
+        for: 2m
+        labels:
+          severity: critical
+          sli: event_processing
+        annotations:
+          summary: "Event processing delay p95 above failure threshold (5s)"
+          description: "Current p95 processing time: {{ $value }}s"

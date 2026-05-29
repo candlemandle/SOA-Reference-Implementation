@@ -1,0 +1,118 @@
+name: CI Pipeline
+
+on:
+  push:
+    paths:
+      - 'Task 7/**'
+  pull_request:
+    paths:
+      - 'Task 7/**'
+
+defaults:
+  run:
+    working-directory: 'Task 7'
+
+jobs:
+  # ─── Stage 1: Build ─────────────────────────────────────────
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker images
+        run: docker compose build
+
+  # ─── Stage 2: Unit Tests ────────────────────────────────────
+  unit-tests:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v --tb=short --junitxml=unit-test-results.xml
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: Task 7/unit-test-results.xml
+
+  # ─── Stage 3: Integration + E2E + Load Tests ────────────────
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Build and start services
+        run: docker compose up -d --build
+
+      - name: Wait for services
+        run: bash scripts/wait_for_services.sh
+
+      - name: Run integration tests
+        run: pytest tests/integration/ -v --tb=short --junitxml=integration-test-results.xml
+
+      - name: Run E2E tests
+        run: pytest tests/e2e/ -v --tb=short --junitxml=e2e-test-results.xml
+
+      - name: Install k6
+        run: |
+          curl -sL https://github.com/grafana/k6/releases/download/v0.49.0/k6-v0.49.0-linux-amd64.tar.gz | tar xz
+          sudo mv k6-v0.49.0-linux-amd64/k6 /usr/local/bin/
+
+      - name: Run load tests
+        run: |
+          k6 run load_tests/load_test.js \
+            --out json=load_test_output.json \
+            2>&1 | tee load_test_log.txt
+
+      - name: Check Prometheus metrics (SLI validation)
+        run: |
+          sleep 15
+          bash scripts/check_metrics.sh 2>&1 | tee metrics_check.txt
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            Task 7/integration-test-results.xml
+            Task 7/e2e-test-results.xml
+            Task 7/load_test_log.txt
+            Task 7/load_test_results.json
+            Task 7/metrics_check.txt
+
+      - name: Collect docker logs
+        if: always()
+        run: docker compose logs > docker-compose-logs.txt 2>&1
+
+      - name: Upload docker logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-logs
+          path: Task 7/docker-compose-logs.txt
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
